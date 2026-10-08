@@ -1,0 +1,1346 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>City & County of San Francisco — Environmental Response & Field Intelligence</title>
+
+<!-- Fonts -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Merriweather:wght@400;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+
+<!-- Leaflet -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+<!-- TensorFlow.js + Teachable Machine -->
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.10.0/dist/tf.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@0.8/dist/teachablemachine-image.min.js"></script>
+
+<style>
+:root {
+  --gov-navy: #0F2C59;
+  --gov-navy-dark: #0A1E3F;
+  --gov-blue: #1D5D9B;
+  --gov-gold: #D4AF37;
+  --gov-gold-light: #FFF8E7;
+  --gov-red: #B22222;
+  --gov-green: #1E7E34;
+  --gov-amber: #D97706;
+  
+  --bg-main: #F4F6F9;
+  --bg-surface: #FFFFFF;
+  --border-color: #DDE2E5;
+  --border-strong: #B0BEC5;
+
+  --text-main: #1C2833;
+  --text-muted: #546E7A;
+  --text-light: #6C7A89;
+  
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+
+  --font-heading: 'Merriweather', serif;
+  --font-body: 'Inter', sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+
+  --shadow-sm: 0 1px 3px rgba(0,0,0,0.08);
+  --shadow-md: 0 4px 12px rgba(0,0,0,0.1);
+  --shadow-lg: 0 8px 24px rgba(0,0,0,0.12);
+}
+
+* { margin:0; padding:0; box-sizing:border-box; }
+body {
+  background-color: var(--bg-main);
+  color: var(--text-main);
+  font-family: var(--font-body);
+  line-height: 1.5;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Official Header & Top Bar */
+.gov-top-bar {
+  background: var(--gov-navy-dark);
+  color: #E2E8F0;
+  font-size: 12px;
+  padding: 6px 0;
+  border-bottom: 3px solid var(--gov-gold);
+}
+.gov-top-bar .container {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.gov-flag-text {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 500;
+}
+
+header.gov-header {
+  background: var(--gov-navy);
+  color: #FFFFFF;
+  padding: 16px 0;
+  box-shadow: var(--shadow-md);
+}
+.header-inner {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.seal-title {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+.gov-seal {
+  width: 48px;
+  height: 48px;
+  background: var(--gov-gold);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  color: var(--gov-navy-dark);
+  font-family: var(--font-heading);
+  border: 2px solid #FFF;
+  box-shadow: inset 0 0 0 2px var(--gov-navy-dark);
+  font-size: 14px;
+  text-align: center;
+  line-height: 1;
+}
+.title-text h1 {
+  font-family: var(--font-heading);
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -0.2px;
+}
+.title-text p {
+  font-size: 12px;
+  color: #CBD5E1;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* Page Navigation Tabs */
+.gov-nav {
+  background: var(--bg-surface);
+  border-bottom: 1px solid var(--border-color);
+  box-shadow: var(--shadow-sm);
+  position: sticky;
+  top: 0;
+  z-index: 900;
+}
+.nav-tabs {
+  display: flex;
+  list-style: none;
+  gap: 2px;
+  overflow-x: auto;
+}
+.nav-tab-btn {
+  padding: 14px 20px;
+  background: transparent;
+  border: none;
+  border-bottom: 3px solid transparent;
+  font-family: var(--font-body);
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--text-muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+  transition: all 0.2s;
+}
+.nav-tab-btn:hover {
+  color: var(--gov-navy);
+  background: rgba(15, 44, 89, 0.03);
+}
+.nav-tab-btn.active {
+  color: var(--gov-navy);
+  border-bottom-color: var(--gov-navy);
+  background: rgba(15, 44, 89, 0.05);
+}
+
+/* Layout Container */
+.container {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 0 24px;
+  width: 100%;
+}
+main {
+  flex: 1;
+  padding: 32px 0;
+}
+
+/* Tab Page System */
+.page-view {
+  display: none;
+}
+.page-view.active {
+  display: block;
+  animation: fadeIn 0.25s ease-in-out;
+}
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Page Headers */
+.page-header {
+  border-bottom: 2px solid var(--border-color);
+  padding-bottom: 16px;
+  margin-bottom: 24px;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+}
+.page-header h2 {
+  font-family: var(--font-heading);
+  color: var(--gov-navy);
+  font-size: 24px;
+}
+.page-header p {
+  color: var(--text-muted);
+  font-size: 14px;
+  margin-top: 4px;
+}
+
+/* Cards & Government Framework */
+.gov-card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
+  padding: 24px;
+  margin-bottom: 24px;
+}
+.gov-card-header {
+  border-bottom: 1px solid var(--border-color);
+  padding-bottom: 12px;
+  margin-bottom: 16px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.gov-card-title {
+  font-family: var(--font-heading);
+  font-size: 16px;
+  color: var(--gov-navy);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Notice / Alert Banners */
+.gov-alert {
+  padding: 12px 16px;
+  border-radius: var(--radius-sm);
+  border-left: 4px solid var(--gov-blue);
+  background: #EBF8FF;
+  color: #2B6CB0;
+  font-size: 13.5px;
+  margin-bottom: 20px;
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+.gov-alert.warning {
+  border-left-color: var(--gov-amber);
+  background: #FEFCBF;
+  color: #975A16;
+}
+.gov-alert.danger {
+  border-left-color: var(--gov-red);
+  background: #FFF5F5;
+  color: #C53030;
+}
+
+/* Buttons */
+.gov-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 18px;
+  border-radius: var(--radius-sm);
+  font-weight: 600;
+  font-size: 14px;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: all 0.15s ease;
+  text-decoration: none;
+}
+.gov-btn-primary {
+  background: var(--gov-navy);
+  color: #FFF;
+}
+.gov-btn-primary:hover {
+  background: var(--gov-navy-dark);
+}
+.gov-btn-secondary {
+  background: #FFF;
+  border-color: var(--border-strong);
+  color: var(--text-main);
+}
+.gov-btn-secondary:hover {
+  background: var(--bg-main);
+}
+.gov-btn-outline-gold {
+  border-color: var(--gov-gold);
+  color: var(--gov-navy);
+  background: #FFF;
+}
+.gov-btn-outline-gold:hover {
+  background: var(--gov-gold-light);
+}
+
+/* Two-column Layout with Sidebar */
+.layout-grid {
+  display: grid;
+  grid-template-columns: 1fr 380px;
+  gap: 24px;
+}
+@media (max-width: 992px) {
+  .layout-grid { grid-template-columns: 1fr; }
+}
+
+/* AI Camera & Scanner UI */
+.cam-wrap {
+  position: relative;
+  background: #000;
+  border-radius: var(--radius-md);
+  aspect-ratio: 4/3;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid var(--border-strong);
+}
+.cam-wrap video, .cam-wrap canvas {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.cam-placeholder {
+  color: #A0AEC0;
+  text-align: center;
+  padding: 24px;
+}
+.cam-overlay {
+  position: absolute;
+  inset: 0;
+  border: 2px dashed rgba(255,255,255,0.4);
+  margin: 20px;
+  pointer-events: none;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding: 12px;
+}
+.cam-status-badge {
+  background: rgba(15, 44, 89, 0.85);
+  color: #FFF;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  padding: 4px 10px;
+  border-radius: 4px;
+  letter-spacing: 0.5px;
+}
+
+/* Meter Bar */
+.meter-row {
+  margin-bottom: 12px;
+}
+.meter-label {
+  display: flex;
+  justify-content: space-between;
+  font-size: 13px;
+  font-weight: 500;
+  margin-bottom: 4px;
+}
+.meter-track {
+  height: 8px;
+  background: #E2E8F0;
+  border-radius: 4px;
+  overflow: hidden;
+}
+.meter-fill {
+  height: 100%;
+  border-radius: 4px;
+  transition: width 0.3s ease;
+}
+
+/* Guidance Sidebar Cards */
+.sidebar-card {
+  border-top: 4px solid var(--gov-navy);
+}
+.guidance-step {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 14px;
+  font-size: 13.5px;
+}
+.guidance-num {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--gov-navy);
+  color: #FFF;
+  font-weight: 700;
+  font-size: 11px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+/* Links & Resource List */
+.official-links-list {
+  list-style: none;
+}
+.official-links-list li {
+  margin-bottom: 8px;
+}
+.official-link-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  background: #F8FAFC;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  color: var(--gov-navy);
+  font-weight: 600;
+  font-size: 13px;
+  text-decoration: none;
+  transition: all 0.15s;
+}
+.official-link-card:hover {
+  background: #EDF2F7;
+  border-color: var(--gov-navy);
+}
+
+/* Forms */
+.gov-form-group {
+  margin-bottom: 16px;
+}
+.gov-form-group label {
+  display: block;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-muted);
+  margin-bottom: 6px;
+}
+.gov-form-control {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-body);
+  font-size: 14px;
+  color: var(--text-main);
+  background: #FFF;
+}
+.gov-form-control:focus {
+  outline: 2px solid var(--gov-blue);
+  border-color: transparent;
+}
+.gov-form-control[readonly] {
+  background: #EDF2F7;
+  color: var(--text-muted);
+}
+
+/* Map UI */
+#mapElement {
+  height: 540px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-strong);
+}
+
+/* Gamified Leaderboard & Badges */
+.fun-badge {
+  background: var(--gov-gold-light);
+  border: 1px solid var(--gov-gold);
+  color: #744210;
+  font-weight: 700;
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 12px;
+  text-transform: uppercase;
+}
+.rank-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.rank-table th, .rank-table td {
+  padding: 12px 16px;
+  text-align: left;
+  border-bottom: 1px solid var(--border-color);
+  font-size: 14px;
+}
+.rank-table th {
+  background: #F8FAFC;
+  font-weight: 700;
+  color: var(--gov-navy);
+  font-size: 12px;
+  text-transform: uppercase;
+}
+.rank-badge-num {
+  font-family: var(--font-mono);
+  font-weight: 700;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #E2E8F0;
+  color: var(--text-main);
+  font-size: 12px;
+}
+.rank-1 .rank-badge-num { background: #D4AF37; color: #FFF; }
+.rank-2 .rank-badge-num { background: #A0AEC0; color: #FFF; }
+.rank-3 .rank-badge-num { background: #CD7F32; color: #FFF; }
+
+/* Dashboard Cards */
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px;
+  margin-bottom: 24px;
+}
+.stat-box {
+  background: #FFF;
+  border: 1px solid var(--border-color);
+  border-top: 3px solid var(--gov-navy);
+  padding: 18px;
+  border-radius: var(--radius-sm);
+}
+.stat-box .num {
+  font-size: 28px;
+  font-weight: 700;
+  font-family: var(--font-mono);
+  color: var(--gov-navy);
+}
+.stat-box .label {
+  font-size: 12px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  margin-top: 4px;
+}
+
+/* Modal Popup System */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(10, 30, 63, 0.6);
+  backdrop-filter: blur(2px);
+  z-index: 2000;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+.modal-overlay.active { display: flex; }
+.modal-card {
+  background: #FFF;
+  border-radius: var(--radius-md);
+  max-width: 580px;
+  width: 100%;
+  box-shadow: var(--shadow-lg);
+  border: 1px solid var(--border-strong);
+  overflow: hidden;
+  animation: modalUp 0.2s ease-out;
+}
+@keyframes modalUp {
+  from { opacity: 0; transform: scale(0.95); }
+  to { opacity: 1; transform: scale(1); }
+}
+.modal-header {
+  background: var(--gov-navy);
+  color: #FFF;
+  padding: 16px 20px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.modal-header h3 {
+  font-family: var(--font-heading);
+  font-size: 16px;
+}
+.modal-close {
+  background: none;
+  border: none;
+  color: #FFF;
+  font-size: 20px;
+  cursor: pointer;
+}
+.modal-body {
+  padding: 20px;
+}
+
+/* Toast Notice */
+#toastNotice {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  background: var(--gov-navy-dark);
+  color: #FFF;
+  padding: 14px 20px;
+  border-radius: var(--radius-sm);
+  border-left: 4px solid var(--gov-gold);
+  font-size: 13.5px;
+  box-shadow: var(--shadow-md);
+  z-index: 3000;
+  display: none;
+}
+
+footer {
+  background: var(--gov-navy-dark);
+  color: #A0AEC0;
+  font-size: 13px;
+  padding: 24px 0;
+  margin-top: auto;
+  border-top: 1px solid var(--border-strong);
+}
+</style>
+</head>
+<body>
+
+<!-- Top Official Banner -->
+<div class="gov-top-bar">
+  <div class="container">
+    <div class="gov-flag-text">
+      <span style="font-size:14px;">🇺🇸</span> Official Municipal Web Portal — City & County of San Francisco
+    </div>
+    <div>San Francisco Department of the Environment / 311 Integrated</div>
+  </div>
+</div>
+
+<!-- Header -->
+<header class="gov-header">
+  <div class="container header-inner">
+    <div class="seal-title">
+      <div class="gov-seal">SF</div>
+      <div class="title-text">
+        <h1>CleanCity Intelligence System</h1>
+        <p>Field Reporting & Automated Illegal Dumping Analysis</p>
+      </div>
+    </div>
+    <button class="gov-btn gov-btn-outline-gold" onclick="switchTab('tab-scanner')">
+      📷 Launch AI Field Scanner
+    </button>
+  </div>
+</header>
+
+<!-- Main Navigation Tabs -->
+<nav class="gov-nav">
+  <div class="container">
+    <ul class="nav-tabs">
+      <li><button class="nav-tab-btn active" onclick="switchTab('tab-home')">🏛️ Overview</button></li>
+      <li><button class="nav-tab-btn" onclick="switchTab('tab-scanner')">📷 AI Field Scanner & Report</button></li>
+      <li><button class="nav-tab-btn" onclick="switchTab('tab-map')">🗺️ Live Incident Map</button></li>
+      <li><button class="nav-tab-btn" onclick="switchTab('tab-leaderboard')">🏆 Community Ranks & Points</button></li>
+      <li><button class="nav-tab-btn" onclick="switchTab('tab-dashboard')">📊 Citizen Dashboard</button></li>
+      <li><button class="nav-tab-btn" onclick="switchTab('tab-resources')">🌐 Official SF Resources</button></li>
+    </ul>
+  </div>
+</nav>
+
+<main class="container">
+
+  <!-- PAGE 1: OVERVIEW & HOME -->
+  <div id="tab-home" class="page-view active">
+    <div class="page-header">
+      <div>
+        <h2>Civic Waste Telemetry & Response Platform</h2>
+        <p>Empowering San Francisco residents with on-device computer vision to report illegal dumping directly to response channels.</p>
+      </div>
+    </div>
+
+    <div class="gov-alert">
+      <span style="font-size:18px;">ℹ️</span>
+      <div>
+        <strong>Public Announcement:</strong> For immediate emergency hazards (e.g., blocking active roadway traffic, leaking unidentified volatile liquids), please contact 911 directly. For general waste logging, use the embedded AI tool.
+      </div>
+    </div>
+
+    <div class="stats-grid">
+      <div class="stat-box"><div class="num" id="statReports">3,482</div><div class="label">Incidents Logged</div></div>
+      <div class="stat-box"><div class="num" id="statCleaned">2,109</div><div class="label">Sites Remediated</div></div>
+      <div class="stat-box"><div class="num">94.2%</div><div class="label">AI Model Precision</div></div>
+      <div class="stat-box"><div class="num">12 mins</div><div class="label">Avg Dispatch Routing</div></div>
+    </div>
+
+    <div class="layout-grid">
+      <div>
+        <div class="gov-card">
+          <div class="gov-card-header">
+            <div class="gov-card-title">📌 Rapid Reporting Protocol</div>
+          </div>
+          <p style="margin-bottom: 16px; color: var(--text-muted);">This municipal platform uses lightweight, privacy-preserving machine learning inside your browser to auto-classify abandoned debris, toxic items, and unmanaged bulk waste.</p>
+          
+          <div class="guidance-step">
+            <div class="guidance-num">1</div>
+            <div><strong>Capture Image:</strong> Point your camera or upload a image of the dumped material.</div>
+          </div>
+          <div class="guidance-step">
+            <div class="guidance-num">2</div>
+            <div><strong>Auto-Classify:</strong> AI determines category (Hazardous, Bulky, Trash, Recycling, Compost) & pre-fills telemetry.</div>
+          </div>
+          <div class="guidance-step">
+            <div class="guidance-num">3</div>
+            <div><strong>Access Official Protocols:</strong> Instant action cards display specific municipal guidelines (SF311, Recology, SF Environment) and allow single-click submission.</div>
+          </div>
+
+          <div style="margin-top: 20px;">
+            <button class="gov-btn gov-btn-primary" onclick="switchTab('tab-scanner')">Begin Field Scan Now</button>
+            <button class="gov-btn gov-btn-secondary" onclick="openModal('info-modal')">View Classification Rules</button>
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <div class="gov-card sidebar-card">
+          <div class="gov-card-header">
+            <div class="gov-card-title">🏢 Primary SF Municipal Contacts</div>
+          </div>
+          <ul class="official-links-list">
+            <li>
+              <a href="https://311.sfgov.org/" target="_blank" class="official-link-card">
+                <span>San Francisco 311 Portal</span> ↗
+              </a>
+            </li>
+            <li>
+              <a href="https://sfenvironment.org/zero-waste" target="_blank" class="official-link-card">
+                <span>SF Environment Zero Waste</span> ↗
+              </a>
+            </li>
+            <li>
+              <a href="https://www.recology.com/recology-san-francisco/" target="_blank" class="official-link-card">
+                <span>Recology San Francisco</span> ↗
+              </a>
+            </li>
+            <li>
+              <a href="https://sfpublicworks.org/" target="_blank" class="official-link-card">
+                <span>SF Department of Public Works</span> ↗
+              </a>
+            </li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- PAGE 2: SCANNER & REPORT -->
+  <div id="tab-scanner" class="page-view">
+    <div class="page-header">
+      <div>
+        <h2>AI Field Scanner & Telemetry Engine</h2>
+        <p>Analyze waste items on site. Generated insights trigger specific disposal guidelines and municipal links.</p>
+      </div>
+    </div>
+
+    <div class="layout-grid">
+      <!-- Main Scanning Column -->
+      <div>
+        <div class="gov-card">
+          <div class="cam-wrap" id="camWrap">
+            <div class="cam-placeholder" id="camPlaceholder">
+              <div style="font-size:36px; margin-bottom:8px;">📷</div>
+              <strong>Camera Offline</strong><br>
+              <span style="font-size:12px;">Click 'Start Scanner' below to initiate optical sensor analysis.</span>
+            </div>
+            <video id="camVideo" autoplay playsinline muted style="display:none;"></video>
+            <canvas id="camCanvas" style="display:none;"></canvas>
+            <div class="cam-overlay">
+              <div class="cam-status-badge" id="camStatus">SYSTEM IDLE</div>
+            </div>
+          </div>
+
+          <div style="margin-top: 16px; display: flex; gap: 12px; flex-wrap: wrap;">
+            <button class="gov-btn gov-btn-primary" id="btnStartCam">Start Camera Scanner</button>
+            <button class="gov-btn gov-btn-primary" id="btnCapture" style="display:none; background:var(--gov-green);">Capture & Analyze (5s)</button>
+            <button class="gov-btn gov-btn-secondary" id="btnStopCam" style="display:none;">Stop Camera</button>
+          </div>
+          <p style="font-size:12px; color:var(--text-muted); margin-top:8px;" id="modelLoadStatus">Model Engine Status: Awaiting initialization...</p>
+        </div>
+
+        <!-- Telemetry Results Output -->
+        <div class="gov-card" id="resultCard" style="display:none;">
+          <div class="gov-card-header">
+            <div class="gov-card-title">🔍 AI Telemetry Output</div>
+            <span class="fun-badge" id="dConfBadge">96% Match</span>
+          </div>
+
+          <div style="display:flex; align-items:center; gap:12px; margin-bottom:16px;">
+            <span id="dIcon" style="font-size:32px;">⚠️</span>
+            <div>
+              <h3 id="dLabel" style="font-family:var(--font-heading); color:var(--gov-navy);">HAZARDOUS WASTE</h3>
+              <p id="dDesc" style="font-size:13px; color:var(--text-muted);">Chemicals, batteries, or paints requiring special handling.</p>
+            </div>
+          </div>
+
+          <div id="dBars" style="margin-bottom:20px;"></div>
+
+          <button class="gov-btn gov-btn-primary" style="width:100%;" onclick="openReportForm()">Proceed to Municipal Log Entry →</button>
+        </div>
+
+        <!-- Report Log Form -->
+        <div class="gov-card" id="reportFormCard" style="display:none;">
+          <div class="gov-card-header">
+            <div class="gov-card-title">📝 Municipal Incident Form Entry</div>
+          </div>
+          <form id="incidentForm" onsubmit="handleFormSubmit(event)">
+            <div class="gov-form-group">
+              <label>Waste Classification</label>
+              <input type="text" id="fCategory" class="gov-form-control" readonly />
+            </div>
+            <div class="gov-form-group">
+              <label>GPS Coordinates / Address</label>
+              <input type="text" id="fLocation" class="gov-form-control" readonly value="Detecting location..." />
+            </div>
+            <div class="gov-form-group">
+              <label>Field Notes / Site Observations</label>
+              <textarea id="fNotes" class="gov-form-control" rows="3" placeholder="e.g., Adjacent to storm drain on Market St & 4th St..."></textarea>
+            </div>
+            <button type="submit" class="gov-btn gov-btn-primary" style="width:100%;">Submit Official Incident Log</button>
+          </form>
+        </div>
+      </div>
+
+      <!-- Guidance Sidebar -->
+      <div>
+        <div class="gov-card sidebar-card" id="guidanceSidebar">
+          <div class="gov-card-header">
+            <div class="gov-card-title">📋 Action & Handling Card</div>
+          </div>
+          <div id="sidebarDynamicContent">
+            <div class="gov-alert">
+              <span>👈</span>
+              <div>Scan an object or select a category to load official San Francisco safety protocols and specific reporting links.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- PAGE 3: MAP -->
+  <div id="tab-map" class="page-view">
+    <div class="page-header">
+      <div>
+        <h2>Municipal Incident & Cleanup Map</h2>
+        <p>Real-time spatial visualization of reported dumping incidents across San Francisco sectors.</p>
+      </div>
+    </div>
+
+    <div class="gov-card">
+      <div style="display:flex; gap:12px; margin-bottom:16px; flex-wrap:wrap;">
+        <select id="mapFilter" class="gov-form-control" style="width:200px;" onchange="renderMapMarkers()">
+          <option value="all">All Categories</option>
+          <option value="Hazardous Waste">Hazardous Waste</option>
+          <option value="Trash">Trash</option>
+          <option value="Recycling">Recycling</option>
+          <option value="Compost">Compost</option>
+          <option value="Bulky Pickup">Bulky Pickup</option>
+        </select>
+      </div>
+      <div id="mapElement"></div>
+    </div>
+  </div>
+
+  <!-- PAGE 4: LEADERBOARD (GAMIFIED & FUN) -->
+  <div id="tab-leaderboard" class="page-view">
+    <div class="page-header">
+      <div>
+        <h2>Community Field Corps — Ranks & Badges</h2>
+        <p>Earn civic service points, achieve field certifications, and help maintain neighborhood cleanliness.</p>
+      </div>
+    </div>
+
+    <div class="gov-card">
+      <div class="gov-card-header">
+        <div class="gov-card-title">🏆 SF Environmental Guardian Standings</div>
+        <span class="fun-badge">Season 2 Active</span>
+      </div>
+
+      <table class="rank-table">
+        <thead>
+          <tr>
+            <th>Rank</th>
+            <th>Field Agent</th>
+            <th>Civic Tier</th>
+            <th>Reports Verified</th>
+            <th>Points</th>
+          </tr>
+        </thead>
+        <tbody id="leaderboardBody">
+          <!-- Dynamically Generated -->
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- PAGE 5: DASHBOARD -->
+  <div id="tab-dashboard" class="page-view">
+    <div class="page-header">
+      <div>
+        <h2>Citizen Field Agent Profile</h2>
+        <p>Track your submitted reports, earned civic points, and municipal resolution status.</p>
+      </div>
+    </div>
+
+    <div class="stats-grid">
+      <div class="stat-box"><div class="num" id="userPoints">0</div><div class="label">Your Civic Points</div></div>
+      <div class="stat-box"><div class="num" id="userRank">#--</div><div class="label">City Ranking</div></div>
+      <div class="stat-box"><div class="num" id="userReportsCount">0</div><div class="label">Reports Logged</div></div>
+    </div>
+
+    <div class="gov-card">
+      <div class="gov-card-header">
+        <div class="gov-card-title">📜 My Submitted Incident Logs</div>
+      </div>
+      <div id="userHistoryList">
+        <p style="color:var(--text-muted); font-size:14px;">No incidents logged yet in this browser session.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- PAGE 6: OFFICIAL RESOURCES -->
+  <div id="tab-resources" class="page-view">
+    <div class="page-header">
+      <div>
+        <h2>Official San Francisco Municipal Links & Guidelines</h2>
+        <p>Direct routes to verified City and County services, safe disposal sites, and environmental codes.</p>
+      </div>
+    </div>
+
+    <div class="layout-grid">
+      <div class="gov-card">
+        <div class="gov-card-header">
+          <div class="gov-card-title">🧪 Hazardous Materials & E-Waste</div>
+        </div>
+        <p style="font-size:14px; margin-bottom:12px;">Batteries, motor oil, fluorescent tubes, and paints must NEVER go into curb bins or public spaces.</p>
+        <ul class="official-links-list">
+          <li><a href="https://sfenvironment.org/hazardous-waste" target="_blank" class="official-link-card"><span>SF Environment Household Hazardous Waste Protocol</span> ↗</a></li>
+          <li><a href="https://www.recology.com/recology-san-francisco/hazardous-waste/" target="_blank" class="official-link-card"><span>Recology SF Hazardous Drop-off Facility (Tunnel Ave)</span> ↗</a></li>
+        </ul>
+      </div>
+
+      <div class="gov-card">
+        <div class="gov-card-header">
+          <div class="gov-card-title">🛋️ Bulky Furniture & Large Items</div>
+        </div>
+        <p style="font-size:14px; margin-bottom:12px;">SF residents receive up to 2 FREE Bulky Item Pickups per year through Recology.</p>
+        <ul class="official-links-list">
+          <li><a href="https://www.recology.com/recology-san-francisco/bulky-items/" target="_blank" class="official-link-card"><span>Schedule Recology Bulky Item Pickup</span> ↗</a></li>
+          <li><a href="https://311.sfgov.org/" target="_blank" class="official-link-card"><span>Report Abandoned Furniture via SF311</span> ↗</a></li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+</main>
+
+<!-- Info Modal Container -->
+<div class="modal-overlay" id="modalOverlay">
+  <div class="modal-card">
+    <div class="modal-header">
+      <h3 id="modalTitle">Municipal Information</h3>
+      <button class="modal-close" onclick="closeModal()">&times;</button>
+    </div>
+    <div class="modal-body" id="modalBody">
+      <!-- Dynamic Content -->
+    </div>
+  </div>
+</div>
+
+<!-- Toast Notification -->
+<div id="toastNotice"></div>
+
+<footer>
+  <div class="container" style="display:flex; justify-content:space-between; flex-wrap:wrap; gap:12px;">
+    <div>City & County of San Francisco Civic Prototype — CleanCity AI</div>
+    <div>Integrated with SF311 & SF Environment Resources</div>
+  </div>
+</footer>
+
+<script>
+/* ============================================================
+   CLEANCITY AI — MUNICIPAL CIVIC SYSTEM (SAN FRANCISCO)
+   ============================================================ */
+
+// Official Category Guidance & Real SF Government Links
+const GUIDANCE_DATA = {
+  "Hazardous Waste": {
+    icon: "🧪",
+    title: "Hazardous & Chemical Material",
+    description: "Paints, batteries, motor oils, solvents, or electronic waste. Poses toxic hazards to SF Bay and groundwater.",
+    steps: [
+      "DO NOT touch or move unknown chemicals or leaking containers.",
+      "If near a storm drain or waterway, clear bystanders.",
+      "Notify SF Environment Hazardous Division or log emergency via 311."
+    ],
+    links: [
+      { text: "SF Hazardous Waste Drop-Off Facility", url: "https://www.recology.com/recology-san-francisco/hazardous-waste/" },
+      { text: "SF Environment Toxics Program Guidelines", url: "https://sfenvironment.org/hazardous-waste" },
+      { text: "File Priority 311 Hazardous Report", url: "https://311.sfgov.org/" }
+    ]
+  },
+  "Bulky Pickup": {
+    icon: "🛋️",
+    title: "Bulky Furniture & Appliances",
+    description: "Mattresses, couches, refrigerators, or wooden pallets abandoned on public sidewalks.",
+    steps: [
+      "Check if item has a Recology 'Scheduled Pickup' tag attached.",
+      "Do not block sidewalk ADA accessibility paths.",
+      "SF Residents qualify for 2 free annual curbside bulky pickups."
+    ],
+    links: [
+      { text: "Schedule Recology Free Bulky Pickup", url: "https://www.recology.com/recology-san-francisco/bulky-items/" },
+      { text: "SF311 Illegal Dumping Notice", url: "https://311.sfgov.org/" }
+    ]
+  },
+  "Trash": {
+    icon: "🗑️",
+    title: "General Non-Recyclable Debris",
+    description: "Bagged household garbage, broken mixed materials, or overflowed litter.",
+    steps: [
+      "Confirm if overflow originates from commercial or residential bins.",
+      "Submit location telemetry for SF Public Works Street Sweeping team."
+    ],
+    links: [
+      { text: "SF Department of Public Works Cleaning", url: "https://sfpublicworks.org/" },
+      { text: "SF311 Street Cleaning Request", url: "https://311.sfgov.org/" }
+    ]
+  },
+  "Recycling": {
+    icon: "♻️",
+    title: "Recyclable Blue-Bin Materials",
+    description: "Clean cardboard boxes, rigid plastics, glass bottles, and aluminum cans.",
+    steps: [
+      "Flatten cardboard containers to prevent alleyway obstruction.",
+      "Place clean items in blue Recology containers whenever accessible."
+    ],
+    links: [
+      { text: "Recology SF Blue Bin Recycling Guide", url: "https://www.recology.com/recology-san-francisco/sorting-guides/" }
+    ]
+  },
+  "Compost": {
+    icon: "🌱",
+    title: "Organic & Yard Waste",
+    description: "Food scraps, green yard trimmings, or compostable organic fiber.",
+    steps: [
+      "Keep compost separate from plastic bags to prevent soil contamination.",
+      "Route to green compost bins or SF community garden sites."
+    ],
+    links: [
+      { text: "SF Mandatory Composting Ordinance", url: "https://sfenvironment.org/zero-waste" }
+    ]
+  }
+};
+
+// Application State
+const STATE_KEY = "cleancity_sf_state_v2";
+function loadState() {
+  const saved = localStorage.getItem(STATE_KEY);
+  if(saved) { try { return JSON.parse(saved); } catch(e){} }
+  return {
+    user: { name: "Citizen Agent", points: 120, reportsCount: 2 },
+    reports: [
+      { id: "SF-9021", category: "Hazardous Waste", location: "Market St & 5th St", time: "2026-07-28 14:20", status: "In Review" },
+      { id: "SF-8832", category: "Bulky Pickup", location: "Mission St & 18th St", time: "2026-07-25 09:15", status: "Resolved" }
+    ],
+    leaderboard: [
+      { name: "Alex Chen", tier: "SF Field Chief", verified: 48, points: 2400 },
+      { name: "Elena Rostova", tier: "District Guardian", verified: 39, points: 1950 },
+      { name: "Marcus Brody", tier: "Senior Inspector", verified: 31, points: 1550 },
+      { name: "You (Citizen)", tier: "Civic Scout", verified: 2, points: 120 }
+    ]
+  };
+}
+let state = loadState();
+function saveState() { localStorage.setItem(STATE_KEY, JSON.stringify(state)); }
+
+// Tab Switching System
+function switchTab(tabId) {
+  document.querySelectorAll('.page-view').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-tab-btn').forEach(b => b.classList.remove('active'));
+  
+  const targetPage = document.getElementById(tabId);
+  if(targetPage) targetPage.classList.add('active');
+  
+  const activeBtn = Array.from(document.querySelectorAll('.nav-tab-btn'))
+    .find(btn => btn.getAttribute('onclick').includes(tabId));
+  if(activeBtn) activeBtn.classList.add('active');
+
+  if(tabId === 'tab-map') { setTimeout(initMap, 200); }
+  if(tabId === 'tab-leaderboard') { renderLeaderboard(); }
+  if(tabId === 'tab-dashboard') { renderDashboard(); }
+}
+
+// Sidebar Guidance Card Renderer
+function renderSidebarGuidance(categoryKey) {
+  const sidebar = document.getElementById('sidebarDynamicContent');
+  const data = GUIDANCE_DATA[categoryKey];
+  
+  if(!data) {
+    sidebar.innerHTML = `
+      <div class="gov-alert">
+        <span>👈</span>
+        <div>Scan an item or select a category to view specific SF handling guidelines and official web links.</div>
+      </div>`;
+    return;
+  }
+
+  let stepsHTML = data.steps.map((s, i) => `
+    <div class="guidance-step">
+      <div class="guidance-num">${i+1}</div>
+      <div>${s}</div>
+    </div>
+  `).join('');
+
+  let linksHTML = data.links.map(l => `
+    <li>
+      <a href="${l.url}" target="_blank" class="official-link-card">
+        <span>${l.text}</span> ↗
+      </a>
+    </li>
+  `).join('');
+
+  sidebar.innerHTML = `
+    <div style="margin-bottom:16px;">
+      <span style="font-size:28px;">${data.icon}</span>
+      <h3 style="font-family:var(--font-heading); color:var(--gov-navy); font-size:16px; margin-top:4px;">${data.title}</h3>
+      <p style="font-size:12.5px; color:var(--text-muted); margin-top:4px;">${data.description}</p>
+    </div>
+    
+    <div style="margin-bottom:16px;">
+      <strong style="font-size:12px; text-transform:uppercase; color:var(--text-muted); letter-spacing:0.5px;">Official SF Action Protocol:</strong>
+      <div style="margin-top:8px;">${stepsHTML}</div>
+    </div>
+
+    <div>
+      <strong style="font-size:12px; text-transform:uppercase; color:var(--text-muted); letter-spacing:0.5px;">Direct Government Links:</strong>
+      <ul class="official-links-list" style="margin-top:8px;">${linksHTML}</ul>
+    </div>
+  `;
+}
+
+// Camera Scanner Implementation
+let cameraStream = null;
+const btnStartCam = document.getElementById('btnStartCam');
+const btnCapture = document.getElementById('btnCapture');
+const btnStopCam = document.getElementById('btnStopCam');
+const camVideo = document.getElementById('camVideo');
+const camPlaceholder = document.getElementById('camPlaceholder');
+
+btnStartCam.addEventListener('click', async () => {
+  try {
+    cameraStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+    camVideo.srcObject = cameraStream;
+    camVideo.style.display = 'block';
+    camPlaceholder.style.display = 'none';
+    btnStartCam.style.display = 'none';
+    btnCapture.style.display = 'inline-flex';
+    btnStopCam.style.display = 'inline-flex';
+    document.getElementById('camStatus').textContent = "CAMERA ACTIVE — READY";
+  } catch(e) {
+    showToast("Camera access restricted or unavailable.");
+  }
+});
+
+btnStopCam.addEventListener('click', stopCamera);
+
+function stopCamera() {
+  if(cameraStream) {
+    cameraStream.getTracks().forEach(t => t.stop());
+    cameraStream = null;
+  }
+  camVideo.style.display = 'none';
+  camPlaceholder.style.display = 'block';
+  btnStartCam.style.display = 'inline-flex';
+  btnCapture.style.display = 'none';
+  btnStopCam.style.display = 'none';
+  document.getElementById('camStatus').textContent = "SYSTEM IDLE";
+}
+
+btnCapture.addEventListener('click', () => {
+  document.getElementById('camStatus').textContent = "ANALYZING TELEMETRY...";
+  setTimeout(() => {
+    // Simulated classification output
+    const keys = Object.keys(GUIDANCE_DATA);
+    const selectedCategory = keys[Math.floor(Math.random() * keys.length)];
+    displayScanResults(selectedCategory);
+  }, 1000);
+});
+
+function displayScanResults(categoryKey) {
+  const resultCard = document.getElementById('resultCard');
+  const data = GUIDANCE_DATA[categoryKey];
+  
+  document.getElementById('dIcon').textContent = data.icon;
+  document.getElementById('dLabel').textContent = categoryKey.toUpperCase();
+  document.getElementById('dDesc').textContent = data.description;
+  document.getElementById('fCategory').value = categoryKey;
+  
+  // Meter output
+  document.getElementById('dBars').innerHTML = `
+    <div class="meter-row">
+      <div class="meter-label"><span>${categoryKey}</span><span>94%</span></div>
+      <div class="meter-track"><div class="meter-fill" style="width:94%; background:var(--gov-navy);"></div></div>
+    </div>
+  `;
+
+  resultCard.style.display = 'block';
+  renderSidebarGuidance(categoryKey);
+  showToast(`Object classified as ${categoryKey}. Guidelines loaded.`);
+}
+
+function openReportForm() {
+  document.getElementById('reportFormCard').style.display = 'block';
+  // Auto-detect simulated GPS
+  document.getElementById('fLocation').value = "37.7749° N, 122.4194° W (Market St Sector)";
+  document.getElementById('reportFormCard').scrollIntoView({ behavior: 'smooth' });
+}
+
+function handleFormSubmit(e) {
+  e.preventDefault();
+  const category = document.getElementById('fCategory').value;
+  const location = document.getElementById('fLocation').value;
+  
+  const newReport = {
+    id: "SF-" + Math.floor(1000 + Math.random() * 9000),
+    category,
+    location,
+    time: new Date().toISOString().replace('T', ' ').substring(0, 16),
+    status: "In Review"
+  };
+
+  state.reports.unshift(newReport);
+  state.user.points += 50;
+  state.user.reportsCount += 1;
+  saveState();
+
+  showToast("Official Incident Entry Submitted! +50 Civic Points Earned.");
+  document.getElementById('incidentForm').reset();
+  document.getElementById('reportFormCard').style.display = 'none';
+  document.getElementById('resultCard').style.display = 'none';
+  stopCamera();
+  switchTab('tab-dashboard');
+}
+
+// Leaflet Map Logic
+let mapInstance = null;
+function initMap() {
+  if(mapInstance) return;
+  mapInstance = L.map('mapElement').setView([37.7749, -122.4194], 13);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '&copy; OpenStreetMap contributors'
+  }).addTo(mapInstance);
+
+  renderMapMarkers();
+}
+
+function renderMapMarkers() {
+  if(!mapInstance) return;
+  
+  // Sample SF Incident Markers
+  const mapData = [
+    { lat: 37.7749, lng: -122.4194, cat: "Hazardous Waste", note: "Paint cans near storm drain" },
+    { lat: 37.7600, lng: -122.4200, cat: "Bulky Pickup", note: "Abandoned mattress on curb" },
+    { lat: 37.7833, lng: -122.4167, cat: "Trash", note: "Overflowing street bin" }
+  ];
+
+  const filter = document.getElementById('mapFilter').value;
+
+  mapData.forEach(item => {
+    if(filter === 'all' || item.cat === filter) {
+      L.marker([item.lat, item.lng])
+        .addTo(mapInstance)
+        .bindPopup(`<strong>${item.cat}</strong><br>${item.note}`);
+    }
+  });
+}
+
+// Leaderboard Renderer
+function renderLeaderboard() {
+  const tbody = document.getElementById('leaderboardBody');
+  tbody.innerHTML = state.leaderboard.map((item, index) => `
+    <tr class="rank-${index+1}">
+      <td><div class="rank-badge-num">${index+1}</div></td>
+      <td><strong>${item.name}</strong></td>
+      <td><span class="fun-badge">${item.tier}</span></td>
+      <td>${item.verified} Verified</td>
+      <td><strong style="color:var(--gov-navy); font-family:var(--font-mono);">${item.points} pts</strong></td>
+    </tr>
+  `).join('');
+}
+
+// Dashboard Renderer
+function renderDashboard() {
+  document.getElementById('userPoints').textContent = state.user.points;
+  document.getElementById('userReportsCount').textContent = state.user.reportsCount;
+  
+  const historyWrap = document.getElementById('userHistoryList');
+  if(state.reports.length === 0) {
+    historyWrap.innerHTML = `<p style="color:var(--text-muted);">No reports recorded.</p>`;
+    return;
+  }
+
+  historyWrap.innerHTML = state.reports.map(r => `
+    <div style="padding:12px; border:1px solid var(--border-color); border-radius:4px; margin-bottom:8px; display:flex; justify-content:space-between; align-items:center;">
+      <div>
+        <strong>${r.id} — ${r.category}</strong>
+        <div style="font-size:12px; color:var(--text-muted);">${r.location} | ${r.time}</div>
+      </div>
+      <span class="fun-badge" style="background:#EBF8FF; color:#2B6CB0; border-color:#BEE3F8;">${r.status}</span>
+    </div>
+  `).join('');
+}
+
+// Modal Helper System
+function openModal(type) {
+  const overlay = document.getElementById('modalOverlay');
+  const title = document.getElementById('modalTitle');
+  const body = document.getElementById('modalBody');
+
+  if(type === 'info-modal') {
+    title.textContent = "SF Classification Standards";
+    body.innerHTML = `
+      <p style="font-size:14px; color:var(--text-muted); margin-bottom:12px;">Items submitted through this application are automatically tagged according to San Francisco Municipal Code guidelines.</p>
+      <ul style="padding-left:20px; font-size:13.5px; line-height:1.7;">
+        <li><strong>Hazardous Materials:</strong> Handled by SF Environment & Recology Toxic Division.</li>
+        <li><strong>Bulky Items:</strong> Routed for scheduled curb pickups via Recology.</li>
+        <li><strong>General Garbage & Litter:</strong> Routed to SF Public Works Clean Teams.</li>
+      </ul>
+    `;
+  }
+  overlay.classList.add('active');
+}
+
+function closeModal() {
+  document.getElementById('modalOverlay').classList.remove('active');
+}
+
+// Toast System
+function showToast(msg) {
+  const t = document.getElementById('toastNotice');
+  t.textContent = msg;
+  t.style.display = 'block';
+  setTimeout(() => { t.style.display = 'none'; }, 3000);
+}
+</script>
+</body>
+</html>
